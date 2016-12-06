@@ -44,8 +44,11 @@ def validateURL(url):
             count += 1
             r = urllib2.urlopen(url)
         sourceFilename = r.headers.get('Content-Disposition')
+
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
+        elif 'ms-excel' in r.headers.get('Content-Type') or 'csv' in r.headers.get('Content-Type'):
+            ext = '.csv'
         else:
             ext = os.path.splitext(url)[1].split('?')[0]
         validURL = r.getcode() == 200
@@ -83,8 +86,8 @@ def convert_mth_strings ( mth_string ):
 #### VARIABLES 1.0
 
 entity_id = "E5049_WFLBC_gov"
-url = "http://www.walthamforest.gov.uk/ldg/council-spend"
-archive_url = 'http://www.walthamforest.gov.uk/Pages/ServiceChild/council-transparency-accounts-spendarchive.aspx'
+url = "https://www.walthamforest.gov.uk/content/council-transparency"
+archive_url = 'https://www.walthamforest.gov.uk/node/804'
 errors = 0
 data = []
 
@@ -96,15 +99,18 @@ soup = BeautifulSoup(html, 'lxml')
 
 #### SCRAPE DATA
 
-block = soup.find('div',{'id':'page-content'})
-spendList = block.findAll('ul')[2]
-listItems = spendList.findAll('li')
+block = soup.find('div','panel-body')
+listItems = block.findAll('li')
 for listItem in listItems:
     anchors = listItem.findAll('a',href=True)
     for anchor in anchors:
-        url = 'http://www.walthamforest.gov.uk' + anchor['href']
+        url = anchor['href']
         url = url.replace(' ','%20')
-        if '.csv' in url:
+        if '.csv' in url or 'CSV' in anchor.text or 'Excel' in anchor.text:
+            if 'http' not in url:
+                url = 'https://www.walthamforest.gov.uk'+url
+            else:
+                url = url
             title = listItem.text
             csvYr = title.split(' ')[1]
             csvMth = title.split(' ')[0][:3]
@@ -112,18 +118,26 @@ for listItem in listItems:
             data.append([csvYr, csvMth, url])
 archive_html = urllib2.urlopen(archive_url)
 archive_soup = BeautifulSoup(archive_html, 'lxml')
-block = archive_soup.find('div',{'id':'page-content'})
-spendList = block.findAll('ul')[0]
-listItems = spendList.findAll('li')
+block = archive_soup.find('div','panel-body')
+listItems = block.findAll('li')
 for listItem in listItems:
     anchors = listItem.findAll('a',href=True)
     for anchor in anchors:
-        url = 'http://www.walthamforest.gov.uk' + anchor['href']
+        if 'http' not in anchor['href']:
+            url = 'http://www.walthamforest.gov.uk' + anchor['href']
+        else:
+            url = anchor['href']
         url = url.replace(' ','%20')
         if '.csv' in url:
+            if 'http' not in url:
+                url = 'https://www.walthamforest.gov.uk'+url
+            else:
+                url = url
             title = listItem.text
             csvYr = title.split(' ')[1]
             csvMth = title.split(' ')[0][:3]
+            if 'April-July' in title:
+                csvMth = 'Q2'
             csvMth = convert_mth_strings(csvMth.upper())
             data.append([csvYr, csvMth, url])
 
